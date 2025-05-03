@@ -1,0 +1,67 @@
+
+pipeline {
+    agent any
+
+    environment {
+        UTKAL_FRONTEND = 'utkalsanskriti-frontend'
+        UTKAL_BACKEND = 'utkalsanskriti-backend'
+        KARMA_FRONTEND = 'karmakanda-frontend'
+        KARMA_BACKEND = 'karmakanda-backend'
+    }
+
+    stages {
+        stage('Checkout Code') {
+            steps {
+                git url: 'https://github.com/yourname/your-repo.git', branch: 'main'
+            }
+        }
+
+        stage('Build React Frontends') {
+            steps {
+                dir("$UTKAL_FRONTEND") {
+                    sh 'npm install'
+                    sh 'npm run build'
+                }
+                dir("$KARMA_FRONTEND") {
+                    sh 'npm install'
+                    sh 'npm run build'
+                }
+            }
+        }
+
+        stage('Build Java Backends') {
+            steps {
+                dir("$UTKAL_BACKEND") {
+                    sh './gradlew build'
+                }
+                dir("$KARMA_BACKEND") {
+                    sh './gradlew build'
+                }
+            }
+        }
+
+        stage('Deploy and Restart') {
+            steps {
+                sh 'cp -r $UTKAL_FRONTEND/build/* /var/www/html/utkalsanskriti/'
+                sh 'cp -r $KARMA_FRONTEND/build/* /var/www/html/karmakanda/'
+
+                sh 'pkill -f "utkalsanskriti-backend" || true'
+                sh 'java -jar $UTKAL_BACKEND/build/libs/*.jar --server.port=8081 &'
+
+                sh 'pkill -f "karmakanda-backend" || true'
+                sh 'java -jar $KARMA_BACKEND/build/libs/*.jar --server.port=8082 &'
+
+                sh 'sudo systemctl reload nginx'
+            }
+        }
+    }
+
+    post {
+        success {
+            echo '✅ Deployment successful!'
+        }
+        failure {
+            echo '❌ Deployment failed!'
+        }
+    }
+}
